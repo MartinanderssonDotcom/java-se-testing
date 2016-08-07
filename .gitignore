@@ -1,3 +1,8 @@
+/logs/
+/target/
+nb-configuration.xml
+src/main/java/martinandersson/com/temp/
+
 *.class
 
 # Mobile Tools for Java (J2ME)
