@@ -99,7 +99,11 @@ public final class Logging
         root.addHandler(memory);
         
         Thread.setDefaultUncaughtExceptionHandler((thread, throwable) -> {
-            LOGGER.log(Level.SEVERE, "Thread will die due to uncaught throwable.", throwable);
+            /*
+             * Can not log this guy on WARNING, that would make the memory handler's
+             * after publish callback dump the buffer first.
+             */
+            LOGGER.log(Level.INFO, "Thread will die due to uncaught throwable.", throwable);
             
             try {
                 pushFromMemoryToDisk(memory, thread.getId() + "_crash");
