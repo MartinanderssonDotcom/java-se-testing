@@ -6,7 +6,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Stream;
 
 /**
  * Docs say that a "stream pipeline" may execute in parallel.<p>
@@ -18,7 +17,7 @@ import java.util.stream.Stream;
  */
 public class ParallelExecution
 {
-    public static void main(String[] args) {
+    public static void main(String... ignored) {
         int n = Runtime.getRuntime().availableProcessors();
         
         if (n < 2) {
@@ -30,8 +29,6 @@ public class ParallelExecution
         while (n-- > 0) {
             objects.add(new Getter());
         }
-        
-        Stream<Getter> stream = objects.stream();
         
         // false
         out.println(objects.stream().isParallel());
