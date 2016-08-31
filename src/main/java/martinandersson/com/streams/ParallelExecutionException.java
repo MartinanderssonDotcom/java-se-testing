@@ -37,8 +37,8 @@ public class ParallelExecutionException
          */
         
         try (IntStream ints = IntStream.range(0, 1_000_000_000)) {
-            ints.parallel()
-                .forEach(ParallelExecutionException::crashAndBurn);
+              ints.parallel()
+                  .forEach(ParallelExecutionException::crashAndBurn);
             
             System.out.println("IntStream didn't throw anything.");
         }
@@ -76,9 +76,7 @@ public class ParallelExecutionException
         
         THROW_EX.set(false);
         
-        AtomicInteger i = new AtomicInteger();
-        
-        try (Stream<Integer> ints = Stream.generate(i::getAndIncrement)) {
+        try (Stream<Integer> ints = Stream.generate(() -> 1)) {
             ints.limit(1_000_000_000)
                 .parallel()
                 .forEach(ParallelExecutionException::crashAndBurn);
@@ -98,7 +96,7 @@ public class ParallelExecutionException
     private static void crashAndBurn(int i) {
         long myId = Thread.currentThread().getId();
         
-        if (i >= 1_000_000 && myId != clientId && THROW_EX.compareAndSet(false, true)) {
+        if (myId != clientId && THROW_EX.compareAndSet(false, true)) {
             System.out.println("Throwing RuntimeException from " + myId);
             
             throw new RuntimeException(
