@@ -1,109 +1,112 @@
 package martinandersson.com.streams;
 
+import java.util.Arrays;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 /**
- * Runtime exceptions in parallel streams.
+ * Runtime exceptions in parallel streams.<p>
+ * 
+ * This code will run through some different parallel streams but let the first
+ * thread that is not the client's thread crash (RuntimeException).<p>
+ * 
+ * It is shown that..<p>
+ * 
+ * 1) All streams rethrow the exception, wrapped in another RuntimeException.<p>
+ * 
+ * 2) All streams but one abort the processing, letting the client's thread
+ * return exceptionally while some threads still linger on processing elements
+ * in the background.<p>
+ * 
+ * The one exception is Stream.generate() who almost complete all elements
+ * before letting the client's thread return exceptionally.<p>
+ * 
+ * For details, see inline comments and this awesome Stackoverflow answer:
+ * http://stackoverflow.com/a/39275425
  * 
  * @author Martin Andersson (webmaster at martinandersson.com)
  */
 public class ParallelExecutionException
 {
-    private static long clientId;
-    
-    private static final AtomicBoolean THROW_EX = new AtomicBoolean();
-    
-    private static final LongAdder ELEMS_PROCESSED = new LongAdder();
-    
-    
-    
     public static void main(String... ignored) {
-        clientId = Thread.currentThread().getId();
-        System.out.println("Client thread Id: " + clientId);
-        
-        
         
         /*
-         * Iterate through tons of numbers, in parallel, let first thread that
-         * is not the one executing main() throw a runtime exception only once.
-         * 
-         * A bad IntStream impl. could suppress this exception and just continue
-         * processing elements. I find that Oracle's JDK re-throw the exception
-         * wrapped in another RuntimeException.
+         * Elements seen after immediate return:    46 013 923
+         * Elements seen after awaitQuiescence():  404 659 272
          */
-        
-        try (IntStream ints = IntStream.range(0, 1_000_000_000)) {
-              ints.parallel()
-                  .forEach(ParallelExecutionException::crashAndBurn);
-            
-            System.out.println("IntStream didn't throw anything.");
-        }
-        catch (RuntimeException e) {
-            System.out.println("Stack trace from IntStream.");
-            e.printStackTrace(System.out);
-        }
-        
-        // "34 535 163" on my machine.
-        System.out.println("IntStream processed this many elements: " +
-                ELEMS_PROCESSED.sumThenReset());
-        
-        
+        runStreamTest("IntStream",
+                IntStream.range(0, 1_000_000_000).mapToObj(Integer::valueOf));
         
         /*
-         * Take two uses a "normal" Stream. The results are a bit strange
-         * though.
-         * 
-         * Had crashAndBurn() not thrown an exception. We would see that the
-         * following Stream processes exactly 1 000 000 000 elements. If - as
-         * the code currently do - crashAndBurn() throw the exception, then..
-         * 
-         * 1) The client thread will never become aware of it. You'll see in the
-         * console that "Stream didn't throw anything." is printed. But,
-         * "Throwing RuntimeException from.." is also printed.
-         * 
-         * You will also find that:
-         * 
-         * 2) The actual amount of elements processed is even greater than the
-         * limit. On my machine: 1 203 762 296.
-         * 
-         * 3) The RuntimeException thrown is completely "lost". Not even
-         * re-thrown when the stream is closed.
-         * 
-         * Question asked here: http://stackoverflow.com/questions/39261067
+         * Elements seen after immediate return:   999 999 873
+         * Elements seen after awaitQuiescence():  999 999 873
          */
         
-        THROW_EX.set(false);
+        runStreamTest("Stream.generate()",
+                Stream.generate(() -> 1).limit(1_000_000_000));
         
-        try (Stream<Integer> ints = Stream.generate(() -> 1)) {
-            ints.limit(1_000_000_000)
-                .parallel()
-                .forEach(ParallelExecutionException::crashAndBurn);
-            
-            System.out.println("Stream didn't throw anything.");
-        }
-        catch (RuntimeException e) {
-            System.out.println("Stack trace from Stream.");
-            e.printStackTrace(System.out);
-        }
+        Object[] stuff = new Object[1_000_000];
         
-        // "1 284 790 946" on my machine.
-        System.out.println("Stream processed this many elements: " +
-                ELEMS_PROCESSED.sumThenReset());
+        /*
+         * Elements seen after immediate return:   699 295
+         * Elements seen after awaitQuiescence():  812 501
+         */
+        
+        runStreamTest("Arrays.stream(T[])", Arrays.stream(stuff));
+        
+        /*
+         * Elements seen after immediate return:   652 968
+         * Elements seen after awaitQuiescence():  687 501
+         */
+        
+        runStreamTest("Collection.stream()", Arrays.asList(stuff).stream());
     }
     
-    private static void crashAndBurn(int i) {
+    
+    
+    private static void runStreamTest(String streamName, Stream<?> stream) {
+        final long clientId = Thread.currentThread().getId();
+        
+        AtomicBoolean throwEx = new AtomicBoolean();
+        
+        LongAdder elementCounter = new LongAdder();
+        
+        try {
+            stream.parallel().forEach(i ->
+                    maybeCrashAndBurn(elementCounter, clientId, throwEx));
+            
+            System.out.printf("%s didn't throw anything.\n", streamName);
+        }
+        catch (RuntimeException e) {
+            System.out.printf("Stack trace from %s.\n", streamName);
+            e.printStackTrace(System.out);
+        }
+        
+        System.out.printf("After immediate return, %s processed this many elements: %s\n",
+                streamName, elementCounter.sum());
+        
+        ForkJoinPool.commonPool().awaitQuiescence(1, TimeUnit.DAYS);
+        
+        System.out.printf("After awaitQuiescence(), %s processed this many elements: %s\n",
+                streamName, elementCounter.sum());
+    }
+    
+    private static void maybeCrashAndBurn(
+            LongAdder elementCounter, long clientId, AtomicBoolean throwEx)
+    {
+        elementCounter.increment();
+        
         long myId = Thread.currentThread().getId();
         
-        if (myId != clientId && THROW_EX.compareAndSet(false, true)) {
+        if (myId != clientId && throwEx.compareAndSet(false, true)) {
             System.out.println("Throwing RuntimeException from " + myId);
             
             throw new RuntimeException(
                     "Crashing thread Id: " + myId);
         }
-        
-        ELEMS_PROCESSED.increment();
     }
 }
