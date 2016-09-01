@@ -71,6 +71,8 @@ public class ParallelExecutionException
          * 
          * 3) The RuntimeException thrown is completely "lost". Not even
          * re-thrown when the stream is closed.
+         * 
+         * Question asked here: http://stackoverflow.com/questions/39261067
          */
         
         THROW_EX.set(false);
