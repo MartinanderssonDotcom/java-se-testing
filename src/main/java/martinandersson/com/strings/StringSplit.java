@@ -39,6 +39,8 @@ public class StringSplit
         
         // 1 2 4 4 5 6 7 8 9 10 11
         printAllNumbers("There are more than1 an2d x4ess ,4,than 5 numbers 6,7,8 9, 10, 11- here");
+        
+        splitStringWithOnlyDelimiters();
     }
     
     private static void splitStringToWords() {
@@ -55,5 +57,24 @@ public class StringSplit
         }
         
         System.out.println();
+    }
+    
+    private static void splitStringWithOnlyDelimiters() {
+        // 0
+        System.out.println("::::.split length: " + "::::".split("::").length);
+        
+        String[] parts = "::::X".split("::");
+        
+        // 3
+        System.out.println("::::X.split length: " + parts.length);
+        
+        // ""
+        System.out.println("::::X.split [0]: " + parts[0]);
+        
+        // ""
+        System.out.println("::::X.split [1]: " + parts[1]);
+        
+        // X
+        System.out.println("::::X.split [2]: " + parts[2]);
     }
 }
